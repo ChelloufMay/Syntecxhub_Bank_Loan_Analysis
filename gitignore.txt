@@ -1,0 +1,29 @@
+# Raw data (downloaded from Kaggle, not stored in the repo)
+data/*
+!data/.gitkeep
+*.csv
+!outputs/*.csv
+
+# Jupyter
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Power BI temp/cache files
+*.pbi/
+.pbi/
+*.pbix.tmp
+*.~pbix
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
