@@ -186,3 +186,34 @@ CREATE TABLE stg.Accepted_Raw (
 );
 GO
 
+-- Load accepted (set ROWTERMINATOR to '0x0a' because the line ending is in Unix endings )
+BULK INSERT stg.Accepted_Raw
+FROM 'C:\SQLImport\accepted_2007_to_2018Q4.csv'
+WITH (
+    FORMAT = 'CSV', FIELDQUOTE = '"', FIELDTERMINATOR = ',',
+    ROWTERMINATOR = '0x0a',
+    FIRSTROW = 2, CODEPAGE = '65001',
+    BATCHSIZE = 100000, TABLOCK
+);
+GO
+
+-- Load rejected
+
+TRUNCATE TABLE stg.Rejected_Raw;
+ALTER TABLE stg.Rejected_Raw ALTER COLUMN Loan_Title NVARCHAR(MAX) NULL;
+GO
+
+BULK INSERT stg.Rejected_Raw
+FROM 'C:\SQLImport\rejected_2007_to_2018Q4.csv'
+WITH (
+    FORMAT = 'CSV', FIELDQUOTE = '"', FIELDTERMINATOR = ',',
+    ROWTERMINATOR = '0x0a',
+    FIRSTROW = 2, CODEPAGE = '65001',
+    BATCHSIZE = 100000, TABLOCK
+);
+GO
+
+-- Quick check (full validation is Step 3)
+SELECT 'Accepted_Raw' AS tbl, COUNT_BIG(*) AS row_count FROM stg.Accepted_Raw
+UNION ALL
+SELECT 'Rejected_Raw', COUNT_BIG(*) FROM stg.Rejected_Raw;
