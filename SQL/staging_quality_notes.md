@@ -45,6 +45,7 @@ To be confirmed in later by comparing against the staged row count.
 
 ## 4. Decision log (updated as the project progresses)
 | Date | Phase | Finding | Decision | Reason |
+|---|---|---|---|---|
 | 23-10-2026 | 2 | Rejected load failed: Loan_Title truncation + invalid characters | Changed column to NVARCHAR(MAX), truncated table, reloaded | Free-text field is longer than expected and contains bad characters |
 | 23-10-2026 | 3 | Row counts: accepted 2,260,701 / rejected 27,648,741 staged = expected | Load accepted | Exact match to file line counts |
 | 23-10-2026 | 3 | Rejected Loan_Title exceeded VARCHAR(500) | Widened to NVARCHAR(MAX), reloaded | No data loss in staging |
