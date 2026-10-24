@@ -197,6 +197,36 @@ CROSS APPLY (SELECT TRY_CAST(a.total_pymnt AS DECIMAL(18,2)) p,
                     TRY_CAST(a.recoveries AS DECIMAL(18,2)) rec) x
 WHERE ABS(x.p - (x.rp + x.ri + x.lf + x.rec)) > 0.05
 ORDER BY ABS(x.p - (x.rp + x.ri + x.lf + x.rec)) DESC;
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* F2b. Which loans have an unparseable component, and what do the raw values look like? */
+SELECT COUNT_BIG(*) AS rows_with_null_component
+FROM audit.v_Accepted_Loans a
+CROSS APPLY (SELECT TRY_CAST(a.total_pymnt AS DECIMAL(18,2)) p,
+                    TRY_CAST(a.total_rec_prncp AS DECIMAL(18,2)) rp,
+                    TRY_CAST(a.total_rec_int AS DECIMAL(18,2)) ri,
+                    TRY_CAST(a.total_rec_late_fee AS DECIMAL(18,2)) lf,
+                    TRY_CAST(a.recoveries AS DECIMAL(18,2)) rec) x
+WHERE x.p IS NULL OR x.rp IS NULL OR x.ri IS NULL OR x.lf IS NULL OR x.rec IS NULL;
+
+SELECT TOP 20 a.id, a.loan_status, a.total_pymnt, a.total_rec_prncp,
+       a.total_rec_int, a.total_rec_late_fee, a.recoveries
+FROM audit.v_Accepted_Loans a
+CROSS APPLY (SELECT TRY_CAST(a.total_rec_late_fee AS DECIMAL(18,2)) lf,
+                    TRY_CAST(a.recoveries AS DECIMAL(18,2)) rec,
+                    TRY_CAST(a.total_rec_prncp AS DECIMAL(18,2)) rp,
+                    TRY_CAST(a.total_rec_int AS DECIMAL(18,2)) ri) x
+WHERE x.lf IS NULL OR x.rec IS NULL OR x.rp IS NULL OR x.ri IS NULL;
+
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* F2c. Component check using FLOAT-then-round conversion (expect 2,260,668) */
+SELECT COUNT_BIG(*) AS loans,
+  SUM(CASE WHEN ABS(p - (rp + ri + lf + rec)) <= 0.05 THEN 1 ELSE 0 END) AS matches_with_recoveries
+FROM audit.v_Accepted_Loans a
+CROSS APPLY (SELECT ROUND(TRY_CAST(a.total_pymnt AS FLOAT),2)        p,
+                    ROUND(TRY_CAST(a.total_rec_prncp AS FLOAT),2)    rp,
+                    ROUND(TRY_CAST(a.total_rec_int AS FLOAT),2)      ri,
+                    ROUND(TRY_CAST(a.total_rec_late_fee AS FLOAT),2) lf,
+                    ROUND(TRY_CAST(a.recoveries AS FLOAT),2)         rec) x;
 
 /*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* F3. How many rejected rows will the DTI and Risk_Score rules affect */
@@ -208,3 +238,14 @@ SELECT
 FROM stg.Rejected_Raw
 CROSS APPLY (SELECT TRY_CAST(REPLACE(Debt_To_Income_Ratio,'%','') AS DECIMAL(18,2)) dti,
                     TRY_CAST(Risk_Score AS DECIMAL(9,2)) risk) x;
+
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* F4. Spike at DTI = 100 in the rejected file? */
+SELECT YEAR(TRY_CONVERT(date, Application_Date)) AS app_year,
+       COUNT_BIG(*) AS rejected_apps,
+       SUM(CASE WHEN dti = 100 THEN 1 ELSE 0 END) AS dti_exactly_100,
+       SUM(CASE WHEN dti > 100 AND dti < 999 THEN 1 ELSE 0 END) AS dti_101_to_998
+FROM stg.Rejected_Raw
+CROSS APPLY (SELECT TRY_CAST(REPLACE(Debt_To_Income_Ratio,'%','') AS DECIMAL(18,2)) dti) x
+GROUP BY YEAR(TRY_CONVERT(date, Application_Date))
+ORDER BY app_year;
