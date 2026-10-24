@@ -82,3 +82,50 @@ INSERT INTO ref.Risk_Band VALUES
  (4,'700-749',700,750),(5,'750+',750,851),(6,'Unknown',NULL,NULL);
 GO
 
+/* ======================================================================== VALIDATION OF THE RULES ======================================================================== */
+
+-- V0. Snapshot date and config
+SELECT * FROM ref.Config;
+
+-- V1. Every loan status is mapped (unmapped_loans must be 0)
+SELECT COUNT_BIG(*) AS unmapped_loans
+FROM audit.v_Accepted_Loans a
+LEFT JOIN ref.Loan_Status_Map m ON m.Loan_Status_Raw = a.loan_status
+WHERE m.Loan_Status_Raw IS NULL;
+
+-- V2. Class split (expect Good 1,957,056 / At Risk 34,252 / Bad 269,360)
+SELECT m.Loan_Class, COUNT_BIG(*) AS loans,
+       CAST(100.0 * COUNT_BIG(*) / SUM(COUNT_BIG(*)) OVER () AS DECIMAL(5,2)) AS pct
+FROM audit.v_Accepted_Loans a
+JOIN ref.Loan_Status_Map m ON m.Loan_Status_Raw = a.loan_status
+GROUP BY m.Loan_Class, m.Class_Sort ORDER BY m.Class_Sort;
+
+-- V3. Money by class: funded, received, repayment ratio
+SELECT m.Loan_Class,
+       SUM(TRY_CAST(a.funded_amnt AS DECIMAL(18,2))) AS funded,
+       SUM(TRY_CAST(a.total_pymnt AS DECIMAL(18,2))) AS received,
+       CAST(SUM(TRY_CAST(a.total_pymnt AS DECIMAL(18,2))) /
+            SUM(TRY_CAST(a.funded_amnt AS DECIMAL(18,2))) AS DECIMAL(6,3)) AS repayment_ratio
+FROM audit.v_Accepted_Loans a
+JOIN ref.Loan_Status_Map m ON m.Loan_Status_Raw = a.loan_status
+GROUP BY m.Loan_Class, m.Class_Sort ORDER BY m.Class_Sort;
+
+-- V4. Why maturity matters: three ways to measure charge-off rate by issue year
+WITH L AS (
+  SELECT YEAR(i.issue_dt) AS issue_year,
+         m.Is_Resolved, m.Is_Charged_Off,
+         CASE WHEN DATEADD(MONTH, TRY_CAST(LEFT(LTRIM(a.term),2) AS INT), i.issue_dt)
+                   <= CAST((SELECT Config_Value FROM ref.Config WHERE Config_Key='Snapshot_Date') AS date)
+              THEN 1 ELSE 0 END AS Is_Matured
+  FROM audit.v_Accepted_Loans a
+  CROSS APPLY (SELECT TRY_CONVERT(date,'01 '+REPLACE(a.issue_d,'-',' '),106) AS issue_dt) i
+  JOIN ref.Loan_Status_Map m ON m.Loan_Status_Raw = a.loan_status
+)
+SELECT issue_year,
+       COUNT_BIG(*) AS loans,
+       CAST(100.0 * SUM(CAST(Is_Charged_Off AS INT)) / COUNT_BIG(*) AS DECIMAL(5,2)) AS chargeoff_pct_all_loans,
+       CAST(100.0 * SUM(CAST(Is_Charged_Off AS INT)) / NULLIF(SUM(CAST(Is_Resolved AS INT)),0) AS DECIMAL(5,2)) AS chargeoff_pct_resolved_only,
+       SUM(Is_Matured) AS matured_loans,
+       CAST(100.0 * SUM(CASE WHEN Is_Matured = 1 THEN CAST(Is_Charged_Off AS INT) ELSE 0 END)
+            / NULLIF(SUM(Is_Matured),0) AS DECIMAL(5,2)) AS chargeoff_pct_matured_only
+FROM L GROUP BY issue_year ORDER BY issue_year;

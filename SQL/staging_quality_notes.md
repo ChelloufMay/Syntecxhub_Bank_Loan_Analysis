@@ -33,6 +33,16 @@ To be confirmed in later by comparing against the staged row count.
 | 12 | Rejected `Debt-To-Income Ratio` values carry a % sign ("0.39%") | Not numeric | Strip "%" and convert in the clean layer |
 | 13 | Rejected `Risk_Score` contains 0.0 values (for example row with 0.0 and 0%) | A 0 score is probably missing data, not a real score | Treat 0 as unknown in the clean layer; confirm in Phase 4 |
 
+## Business rules (final, implemented in 04_business_rules.sql)
+1. Loan class: Good = Fully Paid, Current; At Risk = In Grace Period, Late (16-30), Late (31-120); Bad = Charged Off, Default. Legacy "Does not meet the credit policy" statuses map to Fully Paid / Charged Off.
+2. Resolved = Fully Paid or Charged Off.
+3. Bad Loan % = Bad / all loans (descriptive only; understates risk for recent vintages).
+4. Matured = issue date + term <= snapshot date (2019-03-01). Primary risk measure: charge-off rate on matured loans. 2017-2018 have no matured loans.
+5. Funded Amount = funded_amnt. Amount Received = total_pymnt (includes recoveries). Repayment Ratio = received / funded, interpreted on resolved loans only. Net Return = received - funded.
+6. Money columns converted with ROUND(TRY_CAST(col AS FLOAT), 2).
+7. Bands (ref schema): DTI, income, loan amount, risk score. DTI < 0 or >= 999 -> Unknown. Rejected DTI used by band only.
+8. Approval rate = accepted / (accepted + rejected); rejected Employment_Length excluded; rejected Risk_Score used for 2007-2014 only.
+
 ## 4. Decision log (updated as the project progresses)
 | Date | Phase | Finding | Decision | Reason |
 | 23-10-2026 | 2 | Rejected load failed: Loan_Title truncation + invalid characters | Changed column to NVARCHAR(MAX), truncated table, reloaded | Free-text field is longer than expected and contains bad characters |
@@ -71,3 +81,7 @@ To be confirmed in later by comparing against the staged row count.
 | 24-10-2026 | 4 | F2/F2b: 108 loans failed the component-sum check because total_rec_late_fee holds scientific-notation noise (e.g. -2e-10, 2.4e-09); total_pymnt itself converts fine | Clean layer converts all money columns with ROUND(TRY_CAST(col AS FLOAT), 2). Verified by F2c: 2,260,668 of 2,260,668 loans match (previously 2,260,560) | Values are floating-point residue (about $0.00); a DECIMAL cast rejects scientific notation and silently returns NULL |
 | 24-10-2026 | 4 | Rejected DTI >= 999: 169,258; 100-998: 2,001,269; Risk_Score outside 300-850: 115,755 (86,754 are 0) | NULL DTI if < 0 or >= 999; NULL Risk_Score outside 300-850; keep all other values | Separates placeholders from plausible high values |
 | 24-10-2026 | 4 | Rejected DTI exactly 100: 1,362,556 rows (0.7% of 2016, 5.4% of 2017, 10.0% of 2018; about 0% before 2014); values 101-998 appear in every year (638,713 rows) | Keep the value; use rejected DTI by band only, never AVG or a yearly mean; list in README limitations | Looks like a cap or placeholder introduced in recent data, which makes yearly averages non-comparable. The "40+" band is unaffected |
+| 24-10-2026 | 5 | Snapshot date = 2019-03-01 (latest last_pymnt_d); 0 unmapped statuses; class split Good 1,957,056 (86.57%) / At Risk 34,252 (1.52%) / Bad 269,360 (11.92%) | Rule table ref.Loan_Status_Map adopted as final | Every loan classified; legacy statuses folded into Fully Paid / Charged Off |
+| 24-10-2026 | 5 | Repayment ratio by class: Good 0.847, At Risk 0.548, Bad 0.533 | Class-level ratio is reported but flagged as incomplete for Good (878K Current loans still repaying). Fair repayment ratio = resolved loans only (Fully Paid vs Charged Off), built in Phase 8 | Earlier assumption that Good > 1.0 was wrong; Current loans have not finished repaying |
+| 24-10-2026 | 5 | Charge-off % by issue year: all loans 8.83% (2017), 1.79% (2018); resolved-only 23.3% (2016), 23.1% (2017), 15.8% (2018); matured-only 14.6-16.2% for 2009-2016, NULL for 2017-2018 | Primary risk measure = matured-only charge-off rate. All-loans and resolved-only rates are not used for vintage comparison. 2017-2018 displayed as "not matured", never as 0% | Recent vintages are immature; resolved-only is biased because charge-offs resolve before good loans finish |
+| 24-10-2026 | 5 | From 2014 onwards the matured pool is almost entirely 36-month loans (matured share: 2014 74.7%, 2015 67.2%, 2016 22.1%) | Compare matured charge-off by term (36-month only) in Phase 8; store Is_Matured in the fact table | 60-month loans have not reached maturity; term mix would bias comparisons |
