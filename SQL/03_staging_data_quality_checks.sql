@@ -173,3 +173,38 @@ SELECT COALESCE(a.yr, r.yr) AS yr, a.accepted, r.rejected,
        CAST(100.0 * a.accepted / NULLIF(a.accepted + r.rejected, 0) AS DECIMAL(5,2)) AS approval_rate_pct
 FROM a FULL JOIN r ON a.yr = r.yr
 ORDER BY yr;
+
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* F1. The one duplicate pair: look at it */
+SELECT * FROM (
+  SELECT id, loan_amnt, term, int_rate, issue_d, annual_inc, zip_code, dti, grade,
+         loan_status, total_pymnt, last_pymnt_d,
+         COUNT(*) OVER (PARTITION BY loan_amnt, term, int_rate, installment, issue_d,
+                        annual_inc, earliest_cr_line, zip_code, dti, grade) AS grp_size
+  FROM audit.v_Accepted_Loans) x
+WHERE grp_size > 1;
+
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* F2. The 108 loans where total_pymnt does not equal the sum of its parts */
+SELECT TOP 20 a.id, a.loan_status, x.p AS total_pymnt,
+       x.rp + x.ri + x.lf + x.rec AS components,
+       x.p - (x.rp + x.ri + x.lf + x.rec) AS diff
+FROM audit.v_Accepted_Loans a
+CROSS APPLY (SELECT TRY_CAST(a.total_pymnt AS DECIMAL(18,2)) p,
+                    TRY_CAST(a.total_rec_prncp AS DECIMAL(18,2)) rp,
+                    TRY_CAST(a.total_rec_int AS DECIMAL(18,2)) ri,
+                    TRY_CAST(a.total_rec_late_fee AS DECIMAL(18,2)) lf,
+                    TRY_CAST(a.recoveries AS DECIMAL(18,2)) rec) x
+WHERE ABS(x.p - (x.rp + x.ri + x.lf + x.rec)) > 0.05
+ORDER BY ABS(x.p - (x.rp + x.ri + x.lf + x.rec)) DESC;
+
+/*--------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* F3. How many rejected rows will the DTI and Risk_Score rules affect */
+SELECT
+  SUM(CASE WHEN dti >= 999 THEN 1 ELSE 0 END)                         AS dti_ge_999,
+  SUM(CASE WHEN dti >= 100 AND dti < 999 THEN 1 ELSE 0 END)           AS dti_100_to_998,
+  SUM(CASE WHEN risk IS NOT NULL AND (risk < 300 OR risk > 850) THEN 1 ELSE 0 END) AS risk_outside_300_850,
+  SUM(CASE WHEN risk = 0 THEN 1 ELSE 0 END)                           AS risk_zero
+FROM stg.Rejected_Raw
+CROSS APPLY (SELECT TRY_CAST(REPLACE(Debt_To_Income_Ratio,'%','') AS DECIMAL(18,2)) dti,
+                    TRY_CAST(Risk_Score AS DECIMAL(9,2)) risk) x;

@@ -64,3 +64,7 @@ To be confirmed in later by comparing against the staged row count.
 | 24-10-2026 | 4 | Rejected Employment_Length "< 1 year" 73-91% most years | Keep column but exclude from approval analysis; list in README limitations | Placeholder-like |
 | 24-10-2026 | 4 | 22 rejected rows with NULL state (Mar 2008); 918 blank policy codes; 1 bad zip | Keep rows; unused fields ignored | Immaterial |
 | 24-10-2026 | 4 | Approval rate 4.96-15.05% by year, ~7.6% overall | Accept as approximate (issue vs application date) | Plausible |
+| 24-10-2026 | 4 | Duplicate pair ids 470612 / 470026 identical on all attributes; total_pymnt differs by $0.01 | Keep both, flag Is_Possible_Duplicate | Different ids; 2 of 2.26M rows |
+| 24-10-2026 | 4 | F2 returned 0 rows although 108 loans failed the component-sum check | Cause: NULL (unparseable) components, to be resolved with F2b | NULL comparisons are silently skipped |
+| 24-10-2026 | 4 | Rejected DTI >= 999: 169,258; 100-998: 2,001,269; Risk_Score outside 300-850: 115,755 (86,754 are 0) | Apply rules as planned | |
+| 24-10-2026 | 4 | ~1.36M rejected rows appear to have DTI exactly 100 (pending F4) | Use rejected DTI by band only, never AVG | Likely cap/placeholder |
