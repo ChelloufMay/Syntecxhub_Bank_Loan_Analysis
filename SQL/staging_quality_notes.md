@@ -46,3 +46,21 @@ To be confirmed in later by comparing against the staged row count.
 | 23-10-2026 | 3 | Rejected DTI contains '%' | Strip in clean layer | Needed for numeric conversion |
 | 23-10-2026 | 3 | Rejected Employment_Length ~83% "< 1 year"; Risk_Score ~67% blank | Test by year in Step 4 | Possible defaulted or discontinued fields |
 | 23-10-2026 | 3 | DB size 4.9 GB / 50 GB | OK | |
+| 24-10-2026 | 4 | 33 non-loan rows; footer policy-1 total = SUM(funded_amnt) = 34,004,208,600 | Clean layer = numeric id only (2,260,668 loans) | Dollar-level reconciliation passed |
+| 24-10-2026 | 4 | 1 group of 2 loans identical on 10 attributes, different ids | Keep both, flag only | Different loan ids; identical attributes can occur by chance; impact negligible |
+| 24-10-2026 | 4 | annual_inc = 0 for 1,667 loans | Annual_Income_Clean = NULL, flag kept | Zero income is "not reported", not a real value |
+| 24-10-2026 | 4 | annual_inc > 1,000,000 for 583 loans (max 110M) with matching tiny DTI | Keep, flag Is_Income_Outlier; use income bands/median, never AVG | Internally consistent, can't prove error; bands neutralize skew |
+| 24-10-2026 | 4 | dti blank 1,711; negative 2; = 999 for 135 | NULL for blank/negative/>=999; band "Unknown" | 999 and negatives are placeholders |
+| 24-10-2026 | 4 | dti 100-998 for 2,426 loans | Keep, falls in "40+" band | Possible (debt exceeds income) |
+| 24-10-2026 | 4 | revol_util > 100 for 7,343 loans | Keep | Over-limit usage is legitimate |
+| 24-10-2026 | 4 | term has leading space on all rows | TRIM; term_months = 36/60 | Consistency |
+| 24-10-2026 | 4 | All date columns parse; no date-order violations | Convert to DATE (1st of month) | |
+| 24-10-2026 | 4 | total_pymnt = rec_prncp + rec_int + late_fee + recoveries for 99.995% of loans | "Amount Received" = total_pymnt (includes recoveries) | Matches component sum |
+| 24-10-2026 | 4 | Charged-off loans repaid ~54% of funded on average | Report received vs funded for bad loans, not just "loss" | Bad loans partly recovered |
+| 24-10-2026 | 4 | Charge-off rate by vintage: 15.6-18.0% (2013-15), 8.8% (2017), 1.8% (2018) | Add resolved-only and matured-cohort measures (Phase 5) | Recent loans immature |
+| 24-10-2026 | 4 | Rejected amount = 0 for 1,288 rows | NULL the amount, exclude from amount analysis | Impossible request |
+| 24-10-2026 | 4 | Rejected DTI: 1,203,063 below 0; 807,971 above 100; max 50,000,031 | NULL if <0 or >=999; keep 100-998 | Placeholders/garbage vs plausible high DTI |
+| 24-10-2026 | 4 | Rejected Risk_Score range 0-990; blank 82/79/46/93% in 2015-2018 | Valid 300-850 else NULL; use for application years 2007-2014 only | FICO range; field dropped after 2014 |
+| 24-10-2026 | 4 | Rejected Employment_Length "< 1 year" 73-91% most years | Keep column but exclude from approval analysis; list in README limitations | Placeholder-like |
+| 24-10-2026 | 4 | 22 rejected rows with NULL state (Mar 2008); 918 blank policy codes; 1 bad zip | Keep rows; unused fields ignored | Immaterial |
+| 24-10-2026 | 4 | Approval rate 4.96-15.05% by year, ~7.6% overall | Accept as approximate (issue vs application date) | Plausible |
