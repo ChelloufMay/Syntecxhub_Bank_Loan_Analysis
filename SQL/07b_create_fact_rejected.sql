@@ -131,7 +131,7 @@ ALTER TABLE fact.Rejected_Monthly WITH CHECK ADD CONSTRAINT FK_RejM_AmtBand   FO
 ALTER TABLE fact.Rejected_Monthly WITH CHECK ADD CONSTRAINT FK_RejM_RiskBand  FOREIGN KEY (Risk_Band_Key)        REFERENCES ref.Risk_Band(Band_Key);
 GO
 
-/* ================== VALIDATION ================== */
+/* ======================================================================== VALIDATION ======================================================================== */
 
 -- RF1. Row count and the cleaning rules (expected values in the comments)
 SELECT COUNT_BIG(*) AS rejected_rows,                                                    -- 27,648,741
