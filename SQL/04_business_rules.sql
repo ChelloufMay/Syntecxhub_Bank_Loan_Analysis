@@ -53,10 +53,10 @@ GO
 /* ---------- Band tables (Lower_Bound <= value < Upper_Bound) ---------- */
 DROP TABLE IF EXISTS ref.DTI_Band;
 CREATE TABLE ref.DTI_Band (Band_Key TINYINT PRIMARY KEY, Band_Label VARCHAR(20) NOT NULL,
-                           Lower_Bound DECIMAL(18,2) NULL, Upper_Bound DECIMAL(18,2) NULL);
+                           Lower_Bound DECIMAL(18,2) NULL, Upper_Bound DECIMAL(18,2) NULL, Sort_Order TINYINT NULL);
 INSERT INTO ref.DTI_Band VALUES
- (1,'0-9.99',0,10),(2,'10-19.99',10,20),(3,'20-29.99',20,30),(4,'30-39.99',30,40),
- (5,'40+',40,999),(6,'Unknown',NULL,NULL);
+ (1,'0.01-9.99',0.01,10,2),(2,'10-19.99',10,20,3),(3,'20-29.99',20,30,4),(4,'30-39.99',30,40,5),
+ (5,'40+',40,999,6),(6,'Unknown',NULL,NULL,7),(7,'Zero (0)',0,0.01,1);
 
 DROP TABLE IF EXISTS ref.Income_Band;
 CREATE TABLE ref.Income_Band (Band_Key TINYINT PRIMARY KEY, Band_Label VARCHAR(20) NOT NULL,

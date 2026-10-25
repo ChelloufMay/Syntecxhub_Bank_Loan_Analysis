@@ -182,6 +182,22 @@ WHERE f.Is_Matured = 1
 GROUP BY g.Grade, t.Term_Label ORDER BY g.Grade, t.Term_Label;
 GO
 
+
+-- C5. Net return by grade and term, matured loans only (compare grades WITHIN a term, not across terms)
+SELECT g.Grade, t.Term_Label,
+       COUNT_BIG(*) AS matured_loans,
+       CAST(100.0 * SUM(CASE WHEN ls.Is_Charged_Off = 1 THEN 1 ELSE 0 END) / COUNT_BIG(*) AS DECIMAL(5,2)) AS chargeoff_pct,
+       CAST(100.0 * (SUM(f.Total_Payment) - SUM(f.Funded_Amount)) / SUM(f.Funded_Amount) AS DECIMAL(6,2)) AS net_return_pct,
+       CAST(100.0 * (SUM(f.Total_Payment) - SUM(f.Funded_Amount)) / SUM(f.Funded_Amount)
+            / (t.Term_Months / 12.0) AS DECIMAL(6,2)) AS net_return_pct_per_year
+FROM fact.Loans f
+JOIN dim.Grade g        ON g.Grade_Key = f.Grade_Key
+JOIN dim.Term t         ON t.Term_Key = f.Term_Key
+JOIN dim.Loan_Status ls ON ls.Loan_Status_Key = f.Loan_Status_Key
+WHERE f.Is_Matured = 1
+GROUP BY g.Grade, t.Term_Label, t.Term_Months
+ORDER BY g.Grade, t.Term_Months;
+
 /* ======================================================================== D. FACTORS AFFECTING APPROVAL (accepted vs rejected; shared dimensions) ======================================================================== */
 
 -- D1. By requested loan amount band (all years)
